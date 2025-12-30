@@ -1,0 +1,42 @@
+name: Deploy to Tencent Cloud with Caddy
+
+on:
+  push:
+    branches: [main] # 如果你的默认分支是 master，请改成 master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20 # Next.js 推荐 18 或 20，根据你的项目调整
+
+      - name: Install dependencies
+        run: npm ci # 推荐用 npm ci，更干净可靠；如果用 yarn 或 pnpm 改成对应命令
+
+      - name: Build site
+        run: npm run build # 执行你的构建命令
+
+      - name: Deploy files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: 'dist/*' # ← 这里最关键！先确认是 out/*
+          target: ${{ secrets.TARGET_DIR }}
+          strip_components: 1 # 把 out/ 这层目录剥离，直接放到 /var/www/blog
+          overwrite: true
+
+      - name: Reload Caddy
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: sudo caddy reload --config /etc/caddy/Caddyfile
